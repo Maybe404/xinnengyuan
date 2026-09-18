@@ -3,7 +3,7 @@ import { CheckCircle2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
-export type PageKey = "overview" | "verify" | "compare" | "decision" | "updates"
+export type PageKey = "topic" | "materials" | "compare" | "research" | "updates" | "capability"
 
 export type EventStage = "idle" | "running" | "pending" | "confirmed"
 
@@ -25,7 +25,7 @@ export function useStore() {
 }
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const [page, setPageRaw] = React.useState<PageKey>("overview")
+  const [page, setPageRaw] = React.useState<PageKey>("topic")
   const [stage, setStage] = React.useState<EventStage>("idle")
 
   const version = stage === "confirmed" ? "v1.5" : "v1.4"

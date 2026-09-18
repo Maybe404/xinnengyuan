@@ -1,8 +1,9 @@
 import {
   Activity,
   ArrowLeftRight,
-  LayoutDashboard,
-  ShieldCheck,
+  FileText,
+  FolderOpen,
+  Landmark,
   Zap,
 } from "lucide-react"
 
@@ -12,37 +13,45 @@ import { cn } from "@/lib/utils"
 
 const NAV: {
   section: string
-  items: { key: PageKey; label: string; icon: typeof LayoutDashboard; badge?: number }[]
+  items: { key: PageKey; label: string; icon: typeof FolderOpen; badge?: number }[]
 }[] = [
   {
-    section: "情报",
+    section: "研究单元",
     items: [
-      { key: "overview", label: "情报总览", icon: LayoutDashboard, badge: 3 },
-      { key: "verify", label: "项目核验台", icon: ShieldCheck },
+      { key: "topic", label: "业务专题", icon: FolderOpen },
+      { key: "materials", label: "情报资料", icon: FileText },
     ],
   },
   {
     section: "研究",
     items: [
-      { key: "compare", label: "区域机会对比", icon: ArrowLeftRight },
-      { key: "decision", label: "布局决策案", icon: Activity },
+      { key: "compare", label: "区域比较", icon: ArrowLeftRight },
+      { key: "research", label: "深度研究", icon: Activity },
     ],
   },
   {
-    section: "响应",
-    items: [{ key: "updates", label: "变化与更新", icon: Zap }],
+    section: "响应与支撑",
+    items: [
+      { key: "updates", label: "动态跟踪", icon: Zap },
+      { key: "capability", label: "企业能力档案", icon: Landmark },
+    ],
   },
 ]
 
 export function Sidebar() {
   const { page, setPage, stage } = useStore()
+  const pendingUpdate = stage === "pending"
   return (
     <aside className="glass-deep relative z-10 flex h-screen w-[228px] shrink-0 flex-col overflow-hidden rounded-none border-x-0 border-y-0 border-l-0">
       <div className="px-6 pt-7 pb-5">
         <div className="text-[26px] leading-none font-semibold tracking-[0.32em] text-foreground">
           观澜
         </div>
-        <div className="mt-2 text-[11px] text-muted-foreground">新能源产业情报研究台</div>
+        <div className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+          新能源场站配套储能
+          <br />
+          产业情报与决策研究台
+        </div>
       </div>
 
       <nav className="flex-1 space-y-5 overflow-y-auto px-3.5 pb-4">
@@ -54,8 +63,6 @@ export function Sidebar() {
             <div className="space-y-0.5">
               {group.items.map((item) => {
                 const active = page === item.key
-                const badge =
-                  item.key === "overview" ? 3 : item.key === "updates" && stage !== "idle" && stage !== "confirmed" ? 1 : undefined
                 return (
                   <button
                     key={item.key}
@@ -75,8 +82,8 @@ export function Sidebar() {
                       )}
                     />
                     {item.label}
-                    {badge !== undefined && (
-                      <Badge className="ml-auto h-4.5 min-w-4.5 px-1 tabular">{badge}</Badge>
+                    {item.key === "updates" && pendingUpdate && (
+                      <Badge className="ml-auto h-4.5 min-w-4.5 px-1 tabular">!</Badge>
                     )}
                   </button>
                 )
@@ -87,9 +94,11 @@ export function Sidebar() {
       </nav>
 
       <div className="border-t border-foreground/[0.06] px-6 py-4 text-[11px] leading-relaxed text-muted-foreground">
-        内部资料库已接入
+        专题 T-2026-003
         <br />
-        <span className="text-muted-foreground/70">演示数据 · 部分为模拟</span>
+        截止 2026-12-31
+        <br />
+        <span className="text-muted-foreground/70">演示环境 · 含真实公开资料与模拟业务数据</span>
       </div>
     </aside>
   )
