@@ -12,9 +12,9 @@ const buttonVariants = cva(
         default:
           "bg-primary text-primary-foreground shadow-[0_1px_2px_oklch(0.4_0.03_260/0.25),inset_0_1px_0_oklch(1_0_0/0.22)] hover:bg-primary/90 active:scale-[0.98]",
         glass:
-          "glass !bg-white/60 hover:!bg-white/80 text-foreground active:scale-[0.98]",
+          "glass !bg-white/60 hover:!bg-white/80 text-foreground active:scale-[0.98] dark:!bg-white/[0.08] dark:hover:!bg-white/[0.14]",
         outline:
-          "hairline bg-white/40 backdrop-blur-md hover:bg-white/70 text-foreground active:scale-[0.98]",
+          "hairline bg-white/40 backdrop-blur-md hover:bg-white/70 text-foreground active:scale-[0.98] dark:bg-white/[0.06] dark:hover:bg-white/[0.12]",
         ghost: "hover:bg-foreground/[0.06] text-foreground",
         link: "text-primary underline-offset-4 hover:underline",
       },

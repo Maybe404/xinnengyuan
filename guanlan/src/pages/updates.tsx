@@ -1,6 +1,5 @@
-import * as React from "react"
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
-import { Bot, History, Sparkles, UserCheck } from "lucide-react"
+import { Bot, History, UserCheck } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -11,7 +10,8 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
-import { EVENT_STEPS_7, HISTORY_EVENTS, VERSION_HISTORY } from "@/data"
+import { RunPipeline } from "@/components/run-pipeline"
+import { EVENT_STEPS_7, HISTORY_EVENTS } from "@/data"
 import { useStore, useToast } from "@/store"
 import { cn } from "@/lib/utils"
 
@@ -35,42 +35,13 @@ const WHO_META = {
 }
 
 export function Updates() {
-  const { stage, setStage, setPage } = useStore()
+  const { stage, setStage, topic } = useStore()
   const toast = useToast()
-  const [visibleSteps, setVisibleSteps] = React.useState(() =>
-    stage === "pending"
-      ? EVENT_STEPS_7.length - 1
-      : stage === "confirmed"
-        ? EVENT_STEPS_7.length
-        : 0
-  )
-  const timersRef = React.useRef<ReturnType<typeof setTimeout>[]>([])
-  React.useEffect(() => () => timersRef.current.forEach(clearTimeout), [])
-
-  const running = stage === "running"
   const pending = stage === "pending"
   const confirmed = stage === "confirmed"
-
-  const fire = () => {
-    if (running) return
-    setStage("running")
-    setVisibleSteps(0)
-    toast("事件已触发：分析新增资料（仅本专题已导入内容）…")
-    timersRef.current.forEach(clearTimeout)
-    timersRef.current = []
-    const autoSteps = EVENT_STEPS_7.length - 1
-    for (let i = 1; i <= autoSteps; i++) {
-      timersRef.current.push(
-        setTimeout(() => {
-          setVisibleSteps(i)
-          if (i === autoSteps) setStage("pending")
-        }, i * 1100)
-      )
-    }
-  }
+  const canDemoUpdate = !!topic.currentVersion
 
   const confirm = () => {
-    setVisibleSteps(EVENT_STEPS_7.length)
     setStage("confirmed")
     toast(
       <>
@@ -82,6 +53,7 @@ export function Updates() {
 
   const showConfirm = pending
   const trendData = confirmed ? [...TREND, { week: "W6", v: 9 }] : TREND
+  const visibleSteps = confirmed ? EVENT_STEPS_7.length : pending ? EVENT_STEPS_7.length - 1 : 0
 
   return (
     <div className="space-y-4">
@@ -92,44 +64,80 @@ export function Updates() {
         </p>
       </div>
 
-      <div className="glass-deep spec-top relative flex flex-wrap items-center gap-6 overflow-hidden rounded-2xl p-6 rise">
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(30rem 12rem at 85% 20%, oklch(0.58 0.19 258 / 0.12), transparent 65%)",
-          }}
-        />
-        <div className="relative">
-          <h3 className="text-[17px] font-semibold tracking-tight">现场演示：导入重要新资料</h3>
-          <p className="mt-1 max-w-md text-[12.5px] leading-relaxed text-muted-foreground">
-            模拟导入「江苏分时电价新政征求意见稿（M-001）」—— 观察依赖反查、影响分析、待确认版本与确认流程。
-          </p>
-        </div>
-        <Button
-          className="relative ml-auto"
-          size="lg"
-          disabled={running}
-          onClick={confirmed ? () => setPage("research") : fire}
-        >
-          {confirmed ? (
-            <>查看已确认的 v1.5 研究</>
-          ) : running ? (
-            <>影响分析中…</>
-          ) : (
-            <>
-              <Sparkles />
-              {pending ? "重新触发（当前 v1.5 待确认）" : "导入模拟新资料"}
-            </>
-          )}
-        </Button>
-      </div>
+      <Card className="rise">
+        <CardHeader>
+          <CardTitle>历史事件留痕</CardTitle>
+          <CardDescription>随专题带出。无影响的新资料也记录入库，不生成空版本。影响分析需手动触发。</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-0">
+          {HISTORY_EVENTS.slice(0, topic.currentVersion ? HISTORY_EVENTS.length : 1).map((e) => (
+            <div key={e.time} className="border-b border-foreground/[0.055] py-3 last:border-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <History className="size-3.5 text-muted-foreground/60" />
+                <span className="text-[11px] tabular text-muted-foreground">{e.time}</span>
+                <span className="text-[12.5px] font-semibold">{e.title}</span>
+                <Badge variant={e.tone} className="ml-auto shrink-0">
+                  {e.impact}
+                </Badge>
+              </div>
+              <p className="mt-1 pl-6 text-[12px] leading-relaxed text-muted-foreground">{e.desc}</p>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
-      {(visibleSteps > 0 || confirmed) && (
+      <RunPipeline
+        page="updates"
+        variant="inline"
+        title="分析已导入的重要新资料"
+        lead={
+          canDemoUpdate
+            ? "针对已导入的江苏分时电价新政（M-001）跑依赖反查与影响分析。预生成流水线，不是全网监测。"
+            : "当前专题还没有已确认研究版本。可以扫描，但不会生成空的对照版本。"
+        }
+        cta={canDemoUpdate ? "分析新增资料" : "扫描资料变化"}
+        rerunLabel="重新分析"
+        forceReady={pending || confirmed}
+        onComplete={() => {
+          if (canDemoUpdate && stage === "idle") {
+            setStage("pending")
+            toast("已载入预生成影响分析 · v1.4 仍为当前正式版本")
+          }
+        }}
+        steps={[
+          {
+            state: "searching",
+            title: "扫描本专题新增资料",
+            desc: "只处理已导入内容，失败不把状态写成无变化",
+            log: "M-001 江苏分时电价征求意见稿",
+          },
+          {
+            state: "working",
+            title: "依赖反查",
+            desc: "找出引用旧电价口径的结论、档位与成立条件",
+            log: "deps: 江苏档位 · 配置经济性前提",
+          },
+          {
+            state: "solving",
+            title: "影响分析",
+            desc: "新政未生效，单列情景研判，不覆盖已确认 v1.4",
+            log: "impact = pending v1.5",
+          },
+          {
+            state: "composing",
+            title: "生成待确认版本",
+            desc: "人工确认前，正式版本仍是上一版",
+            log: canDemoUpdate ? "v1.5 pending confirm" : "no formal baseline",
+          },
+        ]}
+      >
         <Card className="rise">
           <CardHeader>
             <CardTitle>本次事件的更新链路</CardTitle>
-            <CardDescription>事件类型：新增资料 · 来源：M-001（真实公开）· 处理状态：{confirmed ? "已处理" : pending ? "待处理" : "分析中"}</CardDescription>
+            <CardDescription>
+              预生成演示内容 · 事件类型：新增资料 · 来源：M-001（真实公开）· 处理状态：
+              {confirmed ? "已处理" : pending ? "待处理" : "待分析"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-0">
@@ -144,7 +152,7 @@ export function Updates() {
                           "z-10 flex size-7 items-center justify-center rounded-full",
                           s.who === "human"
                             ? "bg-primary text-primary-foreground shadow-[0_2px_8px_oklch(0.58_0.19_258/0.35)]"
-                            : "glass !bg-white/80 text-primary"
+                            : "glass !bg-inset text-primary"
                         )}
                       >
                         <who.icon className="size-3.5" />
@@ -181,75 +189,44 @@ export function Updates() {
             </div>
           </CardContent>
         </Card>
-      )}
 
-      <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-5">
-        <Card className="rise xl:col-span-3">
-          <CardHeader>
-            <CardTitle>证据 V 累计走势（江苏 · 支持计数）</CardTitle>
-            <CardDescription>
-              {confirmed
-                ? "09-18：新政原文核验完成，V 8 → 9（支持计数 +1）"
-                : "当前 V=8 · 模拟事件确认后，新政原文核验将使 V +1"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ChartContainer config={trendConfig} className="h-36 w-full aspect-auto">
-              <AreaChart data={trendData} margin={{ left: -26, right: 8, top: 4 }}>
-                <defs>
-                  <linearGradient id="vFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.25} />
-                    <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid vertical={false} className="chart-grid" />
-                <XAxis dataKey="week" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} dy={6} />
-                <YAxis domain={[0, 10]} tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Area
-                  dataKey="v"
-                  name="V 支持"
-                  stroke="var(--chart-1)"
-                  strokeWidth={2}
-                  fill="url(#vFill)"
-                  dot={{ r: 3, fill: "var(--chart-1)", fillOpacity: 1 }}
-                  isAnimationActive
-                  animationDuration={900}
-                />
-              </AreaChart>
-            </ChartContainer>
-          </CardContent>
-        </Card>
-
-        <Card className="rise xl:col-span-2">
-          <CardHeader>
-            <CardTitle>历史事件留痕</CardTitle>
-            <CardDescription>无影响的新资料也记录入库与分析结果，不生成空版本</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-0">
-            {HISTORY_EVENTS.map((e) => (
-              <div key={e.time} className="border-b border-foreground/[0.055] py-3 last:border-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <History className="size-3.5 text-muted-foreground/60" />
-                  <span className="text-[11px] tabular text-muted-foreground">{e.time}</span>
-                  <span className="text-[12.5px] font-semibold">{e.title}</span>
-                  <Badge variant={e.tone} className="ml-auto shrink-0">
-                    {e.impact}
-                  </Badge>
-                </div>
-                <p className="mt-1 pl-6 text-[12px] leading-relaxed text-muted-foreground">{e.desc}</p>
-              </div>
-            ))}
-            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-              {VERSION_HISTORY.map((v) => (
-                <span key={v.ver} className="tabular">
-                  {v.ver}·{v.ver === "v1.5" ? (confirmed ? "已确认" : pending ? "待确认" : "草稿") : v.state}
-                </span>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Card className="rise">
+        <CardHeader>
+          <CardTitle>证据 V 累计走势（江苏 · 支持计数）</CardTitle>
+          <CardDescription>
+            {confirmed
+              ? "09-18：新政原文核验完成，V 8 → 9（支持计数 +1）"
+              : "当前 V=8 · 模拟事件确认后，新政原文核验将使 V +1"}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ChartContainer config={trendConfig} className="h-36 w-full aspect-auto">
+            <AreaChart data={trendData} margin={{ left: -26, right: 8, top: 4 }}>
+              <defs>
+                <linearGradient id="vFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.25} />
+                  <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid vertical={false} className="chart-grid" />
+              <XAxis dataKey="week" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} dy={6} />
+              <YAxis domain={[0, 10]} tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Area
+                dataKey="v"
+                name="V 支持"
+                stroke="var(--chart-1)"
+                strokeWidth={2}
+                fill="url(#vFill)"
+                dot={{ r: 3, fill: "var(--chart-1)", fillOpacity: 1 }}
+                isAnimationActive
+                animationDuration={900}
+              />
+            </AreaChart>
+          </ChartContainer>
+        </CardContent>
+      </Card>
+      </RunPipeline>
     </div>
   )
 }

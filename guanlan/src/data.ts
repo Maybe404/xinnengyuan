@@ -10,7 +10,24 @@ export type DimLevel = "高" | "中" | "低" | "资料不足"
 
 // ============ 专题（P01） ============
 
-export const TOPIC = {
+export interface TopicRecord {
+  id: string
+  name: string
+  question: string
+  scope: string[]
+  period: string
+  deadline: string
+  stage: string
+  owner: string
+  capabilityVersion: string
+  criteriaVersion: string
+  currentVersion: string | null
+  materialIds: "all" | string[]
+  stationKeys: "all" | string[]
+  regionKeys: "all" | string[]
+}
+
+export const TOPIC: TopicRecord = {
   id: "T-2026-003",
   name: "新能源场站配储布局研究 · 苏浙粤",
   question:
@@ -23,13 +40,36 @@ export const TOPIC = {
   capabilityVersion: "CAP-2026-09",
   criteriaVersion: "STD-v2",
   currentVersion: "v1.4（已确认 09-12）",
+  materialIds: "all",
+  stationKeys: "all",
+  regionKeys: "all",
 }
 
+export const TOPIC_RUDONG: TopicRecord = {
+  id: "T-2026-004",
+  name: "如东光伏基地增配储能论证",
+  question:
+    "围绕南通如东 300MW 光伏基地存量增配，核验招标口径、限发依据与结算前提，给出配置方案方向及成立条件，支持进入配储方案论证。",
+  scope: ["江苏"],
+  period: "2026-07-01 ~ 2026-12-31",
+  deadline: "2026-12-31",
+  stage: "配储方案论证",
+  owner: "演示账号 · 张远（战略研究）",
+  capabilityVersion: "CAP-2026-09",
+  criteriaVersion: "STD-v2",
+  currentVersion: null,
+  materialIds: ["M-001", "M-006", "M-010", "M-013", "M-017"],
+  stationKeys: ["rd"],
+  regionKeys: ["js"],
+}
+
+export const PRESET_TOPICS: TopicRecord[] = [TOPIC, TOPIC_RUDONG]
+
 export const TOPIC_STATS = [
-  { label: "已导入资料", value: 42, sub: "去重后 · 含 9 份真实公开", target: "materials" },
-  { label: "证据记录", value: 67, sub: "已核验 41 · 待核验 19 · 冲突 4", target: "compare" },
-  { label: "在跟踪场站", value: 6, sub: "配储项目 7 个 · 1 个深挖中", target: "compare" },
-  { label: "声量 N / 证据 V", value: "31 / 14", sub: "近 30 天 · 模拟资料不计入", target: "compare" },
+  { label: "已导入资料", value: 0, sub: "", target: "materials" },
+  { label: "证据记录", value: 0, sub: "", target: "materials" },
+  { label: "在跟踪场站", value: 0, sub: "", target: "compare" },
+  { label: "声量 N / 证据 V", value: "—", sub: "", target: "compare" },
 ]
 
 // ============ 情报资料（P02） ============
@@ -44,18 +84,25 @@ export type MatType =
   | "实地调研"
   | "内部项目资料"
 
+export interface MaterialFact {
+  text: string
+  state: VerifyState
+  result?: string
+}
+
 export interface Material {
   id: string
   title: string
   type: MatType
   prop: DataProp
   source: string
+  url?: string
   published: string // 发布时间，未知则 "未知"
   region: string
   object: string
   excerpt: string
   loc: string
-  facts: { text: string; state: VerifyState; result?: string }[]
+  facts: MaterialFact[]
 }
 
 export const MATERIALS: Material[] = [
@@ -65,6 +112,7 @@ export const MATERIALS: Material[] = [
     type: "政策",
     prop: "真实公开",
     source: "江苏省发改委官网",
+    url: "https://fzggw.jiangsu.gov.cn/",
     published: "2026-09-18",
     region: "江苏",
     object: "全省工商业及场站",
@@ -82,6 +130,7 @@ export const MATERIALS: Material[] = [
     type: "电价与市场规则",
     prop: "真实公开",
     source: "广东电力交易中心",
+    url: "https://www.gd.csg.cn/",
     published: "2026-08-22",
     region: "广东",
     object: "省内市场主体",
@@ -98,6 +147,7 @@ export const MATERIALS: Material[] = [
     type: "政策",
     prop: "真实公开",
     source: "浙江省能源局",
+    url: "https://fzggw.zj.gov.cn/",
     published: "2026-07-30",
     region: "浙江",
     object: "新建风电光伏场站",
@@ -195,6 +245,7 @@ export const MATERIALS: Material[] = [
     type: "电价与市场规则",
     prop: "真实公开",
     source: "江苏省发改委官网",
+    url: "https://fzggw.jiangsu.gov.cn/",
     published: "2026-01-15",
     region: "江苏",
     object: "江苏大工业电价",
@@ -846,6 +897,117 @@ export const VERSION_HISTORY = [
 ]
 
 // ============ 通用 ============
+
+export const STATION_STATUS: Record<string, { label: string; note: string }> = {
+  xs: { label: "已并网跟踪", note: "二期已投运，本专题不作新建排序对象" },
+  rd: { label: "优先论证", note: "省内单独生成：招标中 + 限发证据已核验" },
+  yw: { label: "证据不足并列", note: "配置参数未知，不虚构排序名次" },
+  tz: { label: "情景跟进", note: "仅有模拟访谈，结论为情景研判" },
+  zs: { label: "资料缺口", note: "调度约束与限发数据未导入" },
+  yj: { label: "持续观察", note: "模拟场站，不计入真实机会排序" },
+}
+
+export interface SourceRow {
+  org: string
+  url: string
+  topic: string
+  owner: string
+  freq: string
+  lastOk: string
+  next: string
+  status: "正常" | "检查失败" | "无变化"
+  lastResult: string
+}
+
+export const SOURCES: SourceRow[] = [
+  {
+    org: "江苏省发改委",
+    url: "https://fzggw.jiangsu.gov.cn/",
+    topic: "电价与配储政策",
+    owner: "张远",
+    freq: "每周",
+    lastOk: "2026-09-18",
+    next: "2026-09-25",
+    status: "正常",
+    lastResult: "新增资料 M-001",
+  },
+  {
+    org: "浙江省能源局",
+    url: "https://fzggw.zj.gov.cn/",
+    topic: "新建场站配储要求",
+    owner: "李工",
+    freq: "每周",
+    lastOk: "2026-09-11",
+    next: "2026-09-18",
+    status: "无变化",
+    lastResult: "无新增文件",
+  },
+  {
+    org: "广东电力交易中心",
+    url: "https://www.gd.csg.cn/",
+    topic: "现货衔接规则",
+    owner: "王工",
+    freq: "每周",
+    lastOk: "2026-09-10",
+    next: "2026-09-17",
+    status: "检查失败",
+    lastResult: "入口超时，未更新最后成功检查时间",
+  },
+  {
+    org: "江苏省电力公司公示平台",
+    url: "https://www.js.sgcc.com.cn/",
+    topic: "并网与项目公示",
+    owner: "张远",
+    freq: "每周",
+    lastOk: "2026-09-15",
+    next: "2026-09-22",
+    status: "正常",
+    lastResult: "新增资料 M-004",
+  },
+]
+
+export function factKey(materialId: string, factIndex: number) {
+  return `${materialId}#${factIndex}`
+}
+
+export function filterMaterials(all: Material[], topic: TopicRecord) {
+  if (topic.materialIds === "all") return all
+  const allow = new Set(topic.materialIds)
+  return all.filter((m) => allow.has(m.id))
+}
+
+export function filterStations(topic: TopicRecord) {
+  if (topic.stationKeys === "all") return STATIONS
+  const allow = new Set(topic.stationKeys)
+  return STATIONS.filter((s) => allow.has(s.key))
+}
+
+export function filterRegions(topic: TopicRecord) {
+  if (topic.regionKeys === "all") return REGIONS_7
+  const allow = new Set(topic.regionKeys)
+  return REGIONS_7.filter((r) => allow.has(r.key))
+}
+
+export function materialStats(list: Material[]) {
+  let verified = 0
+  let pending = 0
+  let conflict = 0
+  let vSupport = 0
+  let facts = 0
+  for (const m of list) {
+    for (const f of m.facts) {
+      facts++
+      if (f.state === "已核验") {
+        verified++
+        if (f.result === "支持事实" && m.prop !== "模拟") vSupport++
+      } else if (f.state === "待核验") pending++
+      else if (f.state === "存在冲突") conflict++
+    }
+  }
+  const realPublic = list.filter((m) => m.prop === "真实公开").length
+  const n = list.filter((m) => m.prop !== "模拟").length
+  return { facts, verified, pending, conflict, realPublic, n, vSupport }
+}
 
 export const PROP_BADGE: Record<DataProp, "default" | "amber" | "violet"> = {
   真实公开: "default",

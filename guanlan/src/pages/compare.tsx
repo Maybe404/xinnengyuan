@@ -1,7 +1,6 @@
 import * as React from "react"
 import {
   AlertTriangle,
-  ArrowLeftRight,
   CircleCheck,
   CircleDashed,
   Factory,
@@ -25,16 +24,17 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { RunPipeline } from "@/components/run-pipeline"
 import {
   LEVEL_NUM,
-  REGIONS_7,
   SEVEN_DIMS,
-  STATIONS,
+  STATION_STATUS,
   TIER_BADGE,
   type RegionProfile,
+  type SevenDim,
   type Station,
 } from "@/data"
-import { useToast } from "@/store"
+import { useStore } from "@/store"
 import { cn } from "@/lib/utils"
 
 // ---- 雷达图：定性映射（高3/中2/低1，资料不足不绘制），非综合分 ----
@@ -109,7 +109,7 @@ const nvConfig = {
 // ---- 场站详情 Sheet ----
 
 function StationSheet({ station, onClose }: { station: Station | null; onClose: () => void }) {
-  const toast = useToast()
+  const { setPage } = useStore()
   return (
     <Sheet open={!!station} onOpenChange={(v) => !v && onClose()}>
       {station && (
@@ -141,7 +141,7 @@ function StationSheet({ station, onClose }: { station: Station | null; onClose: 
                   ["结算口径", station.value.settle],
                   ["缺口", station.value.gap],
                 ].map(([k, v]) => (
-                  <div key={k} className="rounded-lg bg-white/55 px-3 py-1.5">
+                  <div key={k} className="rounded-lg bg-inset px-3 py-1.5">
                     <span className="text-muted-foreground">{k}：</span>
                     {v}
                   </div>
@@ -152,12 +152,12 @@ function StationSheet({ station, onClose }: { station: Station | null; onClose: 
             <section>
               <h4 className="mb-2 text-[12px] font-semibold tracking-wide text-primary">配储项目</h4>
               {station.projects.length === 0 ? (
-                <p className="rounded-lg bg-white/55 px-3 py-2 text-[12.5px] text-muted-foreground">
+                <p className="rounded-lg bg-inset px-3 py-2 text-[12.5px] text-muted-foreground">
                   暂无配储项目建档 —— 资料缺口，不虚构机会
                 </p>
               ) : (
                 station.projects.map((p) => (
-                  <div key={p.name} className="mb-2.5 rounded-xl bg-white/60 p-3.5">
+                  <div key={p.name} className="mb-2.5 rounded-xl bg-inset p-3.5">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-[13px] font-semibold">{p.name}</span>
                       <Badge variant="outline">{p.kind}</Badge>
@@ -208,14 +208,34 @@ function StationSheet({ station, onClose }: { station: Station | null; onClose: 
             </section>
 
             <section className="flex flex-wrap gap-2.5">
-              <Button size="sm" onClick={() => toast("配置方案方向已带入深度研究（演示）")}>
+              <Button
+                size="sm"
+                onClick={() => {
+                  onClose()
+                  setPage("research")
+                }}
+              >
                 查看配置方案方向
               </Button>
-              <Button size="sm" variant="outline" onClick={() => toast("已列出关联结论（演示）")}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  onClose()
+                  setPage("research")
+                }}
+              >
                 查看关联结论
               </Button>
-              <Button size="sm" variant="outline" onClick={() => toast("待核验事项清单已展开（演示）")}>
-                查看待核验事项
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  onClose()
+                  setPage("materials")
+                }}
+              >
+                补充资料 / 待核验
               </Button>
             </section>
           </div>
@@ -228,13 +248,24 @@ function StationSheet({ station, onClose }: { station: Station | null; onClose: 
 // ---- 主页面 ----
 
 export function Compare() {
-  const [aKey, setAKey] = React.useState("js")
-  const [bKey, setBKey] = React.useState("zj")
+  const { regions, stations, openEvidence, materials, setPage, markStationOpened } = useStore()
+  const [aKey, setAKey] = React.useState(regions[0]?.key ?? "js")
+  const [bKey, setBKey] = React.useState(regions[1]?.key ?? regions[0]?.key ?? "zj")
   const [station, setStation] = React.useState<Station | null>(null)
   const [dimFocus, setDimFocus] = React.useState<string | null>(null)
 
-  const a = REGIONS_7.find((r) => r.key === aKey)!
-  const b = REGIONS_7.find((r) => r.key === bKey)!
+  React.useEffect(() => {
+    if (!regions.some((r) => r.key === aKey)) setAKey(regions[0]?.key ?? "js")
+    if (!regions.some((r) => r.key === bKey)) setBKey(regions[1]?.key ?? regions[0]?.key ?? "zj")
+  }, [regions, aKey, bKey])
+
+  const a = regions.find((r) => r.key === aKey) ?? regions[0]
+  const b = regions.find((r) => r.key === bKey) ?? regions[0]
+  if (!a || !b) {
+    return (
+      <p className="text-[13px] text-muted-foreground">当前专题尚未关联比较区域。请先在业务专题中打开预置专题。</p>
+    )
+  }
 
   const pick = (k: string) => {
     if (k === aKey) return
@@ -247,7 +278,7 @@ export function Compare() {
     }
   }
 
-  const nvData = REGIONS_7.map((r) => ({
+  const nvData = regions.map((r) => ({
     name: r.name,
     n: r.n,
     v: r.v.support,
@@ -255,7 +286,7 @@ export function Compare() {
   }))
 
   // 背离提示：N≥5 且 V=0 且 U≥1（演示阈值，非真假判定）
-  const divergence = REGIONS_7.filter((r) => r.n >= 5 && r.v.support === 0 && r.u >= 1)
+  const divergence = regions.filter((r) => r.n >= 5 && r.v.support === 0 && r.u >= 1)
 
   const focusRegion = dimFocus ? a : null
 
@@ -268,9 +299,18 @@ export function Compare() {
         </p>
       </div>
 
+      {materials.length === 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-amber-500/[0.08] px-5 py-4 text-[12.5px] text-amber-900 dark:text-amber-200">
+          比较图依赖已纳入资料。可先查看本专题关联场站，图表需有资料后才能运行。
+          <Button size="sm" variant="outline" onClick={() => setPage("materials")}>
+            去情报资料
+          </Button>
+        </div>
+      )}
+
       {/* 三省卡片：档位 + 必要条件 + N/V/U */}
       <div className="flex flex-wrap gap-3 rise">
-        {REGIONS_7.map((r) => {
+        {regions.map((r) => {
           const isA = r.key === aKey
           const isB = r.key === bKey
           const passed = r.necessary.filter((c) => c.state === "已核验满足").length
@@ -300,7 +340,86 @@ export function Compare() {
             </button>
           )
         })}
+        <Button className="ml-auto self-center" size="sm" onClick={() => setPage("research")}>
+          生成 / 打开研究
+        </Button>
       </div>
+
+      <RunPipeline
+        page="compare"
+        variant="inline"
+        title="运行七维对照与图表分析"
+        lead="省份卡片和场站列表随专题带出。图表需要手动跑一遍口径对齐，才能作为研究输入。"
+        cta="运行比较分析"
+        rerunLabel="重新比较"
+        blocked={materials.length === 0}
+        blockedHint="没有可用资料时不能出比较图。先纳入资料。"
+        blockedActionLabel="去情报资料"
+        onBlockedAction={() => setPage("materials")}
+        steps={[
+          {
+            state: "searching",
+            title: "对齐时点与结算口径",
+            desc: "跨省比较只保留已对齐窗口，不可比处标注",
+            log: "window=30d · cutoff=2026-12-31",
+          },
+          {
+            state: "working",
+            title: "统计声量 N 与核验证据 V",
+            desc: "模拟资料不计入真实 N；不计算真实率",
+            log: `regions=${regions.length} · materials=${materials.length}`,
+          },
+          {
+            state: "solving",
+            title: "七维定性对照",
+            desc: "高/中/低或资料不足，不输出无解释综合分",
+            log: "radar two-province overlay",
+          },
+          {
+            state: "weaving",
+            title: "供需对照",
+            desc: "同一观察窗口的需求侧与供给侧",
+            log: `focus=${a.name}`,
+          },
+        ]}
+      >
+
+      {regions.length > 1 && (
+        <Card className="rise overflow-x-auto">
+          <CardHeader>
+            <CardTitle>三省七维对照表</CardTitle>
+            <CardDescription>
+              展示有依据的高/中/低或资料不足，不输出无解释综合分。雷达仅两两对照，不以面积当总分。
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="overflow-x-auto px-0 pb-3">
+            <table className="w-full min-w-[640px] text-[12.5px]">
+              <thead>
+                <tr className="border-b border-foreground/[0.07] text-left text-[11px] text-muted-foreground">
+                  <th className="px-5 py-2 font-medium">维度</th>
+                  {regions.map((r) => (
+                    <th key={r.key} className="px-3 py-2 font-medium">
+                      {r.name}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {SEVEN_DIMS.map((dim) => (
+                  <tr key={dim} className="border-b border-foreground/[0.04]">
+                    <td className="px-5 py-2 font-medium">{dim}</td>
+                    {regions.map((r) => (
+                      <td key={r.key} className="px-3 py-2 text-muted-foreground">
+                        {r.dims[dim]}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
 
       {/* 雷达 + 维度对照 */}
       <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-5">
@@ -324,13 +443,26 @@ export function Compare() {
           <CardContent className="pb-3">
             <DimRadar a={a} b={b} onPickDim={(d) => d && setDimFocus(d)} />
             {focusRegion && dimFocus && (
-              <div className="rise mt-1 rounded-xl bg-white/60 p-3 text-[12px] leading-relaxed">
+              <div className="rise mt-1 rounded-xl bg-inset p-3 text-[12px] leading-relaxed">
                 <div className="font-semibold text-primary">
-                  {dimFocus} · {focusRegion.name}：{focusRegion.dims[dimFocus as never]}
+                  {dimFocus} · {focusRegion.name}：{focusRegion.dims[dimFocus as SevenDim]}
                 </div>
                 <div className="mt-0.5 text-muted-foreground">
-                  依据：{focusRegion.dimBasis[dimFocus as never] ?? "待补充"}
+                  依据：{focusRegion.dimBasis[dimFocus as SevenDim] ?? "待补充"}
                 </div>
+                {(() => {
+                  const basis = focusRegion.dimBasis[dimFocus as SevenDim] ?? ""
+                  const hit = materials.find((m) => basis.includes(m.id))
+                  if (!hit) return null
+                  return (
+                    <button
+                      className="mt-1 block text-[11px] text-primary underline underline-offset-2"
+                      onClick={() => openEvidence({ materialId: hit.id, factIndex: 0 })}
+                    >
+                      打开 {hit.id} 证据侧栏
+                    </button>
+                  )
+                })()}
                 <button
                   className="mt-0.5 text-[11px] text-primary underline underline-offset-2"
                   onClick={() => setDimFocus(null)}
@@ -384,7 +516,7 @@ export function Compare() {
             </CardHeader>
             <CardContent className="space-y-1">
               {a.necessary.map((c) => (
-                <div key={c.name} className="flex items-center gap-2 rounded-lg bg-white/50 px-3 py-1.5 text-[12.5px]">
+                <div key={c.name} className="flex items-center gap-2 rounded-lg bg-inset px-3 py-1.5 text-[12.5px]">
                   {c.state === "已核验满足" ? (
                     <CircleCheck className="size-3.5 shrink-0 text-primary" />
                   ) : (
@@ -402,71 +534,71 @@ export function Compare() {
         </div>
       </div>
 
-      {/* 供需对照 + 场站列表 */}
-      <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-5">
-        <Card className="rise xl:col-span-2">
-          <CardHeader>
-            <CardTitle>供需两侧对照 · 同一观察窗口</CardTitle>
-            <CardDescription>供应商数 / 项目数 / 容量为不同指标，不可互换；市场边界不足写「待核验」</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2.5">
-            <div className="rounded-xl bg-white/55 p-3 text-[12.5px] leading-relaxed">
-              <span className="font-semibold text-primary">{a.name} · 需求侧</span>
-              <p className="mt-0.5 text-muted-foreground">{a.supplyDemand.demand}</p>
-            </div>
-            <div className="flex justify-center text-muted-foreground/50">
-              <ArrowLeftRight className="size-4" />
-            </div>
-            <div className="rounded-xl bg-white/55 p-3 text-[12.5px] leading-relaxed">
-              <span className="font-semibold text-amber-700">{a.name} · 供给/竞争侧</span>
-              <p className="mt-0.5 text-muted-foreground">{a.supplyDemand.supply}</p>
-            </div>
-          </CardContent>
-        </Card>
+      {/* 供需对照 */}
+      <Card className="rise">
+        <CardHeader>
+          <CardTitle>供需两侧对照 · 同一观察窗口</CardTitle>
+          <CardDescription>供应商数 / 项目数 / 容量为不同指标，不可互换；市场边界不足写「待核验」</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-2.5 md:grid-cols-2">
+          <div className="rounded-xl bg-inset p-3 text-[12.5px] leading-relaxed">
+            <span className="font-semibold text-primary">{a.name} · 需求侧</span>
+            <p className="mt-0.5 text-muted-foreground">{a.supplyDemand.demand}</p>
+          </div>
+          <div className="rounded-xl bg-inset p-3 text-[12.5px] leading-relaxed">
+            <span className="font-semibold text-amber-700">{a.name} · 供给/竞争侧</span>
+            <p className="mt-0.5 text-muted-foreground">{a.supplyDemand.supply}</p>
+          </div>
+        </CardContent>
+      </Card>
+      </RunPipeline>
 
-        <Card className="rise overflow-hidden p-0 xl:col-span-3">
-          <CardHeader className="pb-2">
-            <CardTitle>在跟踪场站 · 下钻详情</CardTitle>
-            <CardDescription>场站优先级按相同规则在省内单独生成，不继承省级名次</CardDescription>
-          </CardHeader>
-          <CardContent className="px-2 pb-3">
-            <div className="space-y-1">
-              {STATIONS.map((s) => {
-                const r = REGIONS_7.find((x) => x.name === s.region)!
-                const isA = s.region === a.name
-                return (
-                  <button
-                    key={s.key}
-                    onClick={() => setStation(s)}
-                    className={cn(
-                      "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-white/60",
-                      isA && "bg-primary/[0.05]"
-                    )}
-                  >
-                    <Factory className="size-4 shrink-0 text-primary/70" />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[13px] font-medium">{s.name}</div>
-                      <div className="text-[11px] text-muted-foreground">
-                        {s.type} {s.capacityMW}MW · 配储项目 {s.projects.length} 个
-                      </div>
+      <Card className="rise overflow-hidden p-0">
+        <CardHeader className="pb-2">
+          <CardTitle>在跟踪场站 · 下钻详情</CardTitle>
+          <CardDescription>随专题带出，不依赖比较图；场站优先级在省内单独生成，不继承省级名次</CardDescription>
+        </CardHeader>
+        <CardContent className="px-2 pb-3">
+          <div className="space-y-1">
+            {stations.map((s) => {
+              const local = STATION_STATUS[s.key]
+              const isA = s.region === a.name
+              return (
+                <button
+                  key={s.key}
+                  onClick={() => {
+                    markStationOpened()
+                    setStation(s)
+                  }}
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-inset",
+                    isA && "bg-primary/[0.05]"
+                  )}
+                >
+                  <Factory className="size-4 shrink-0 text-primary/70" />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[13px] font-medium">{s.name}</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {s.type} {s.capacityMW}MW · 配储项目 {s.projects.length} 个
+                      {local ? ` · ${local.note}` : ""}
                     </div>
-                    <Badge variant={s.prop === "模拟" ? "violet" : s.prop === "真实内部" ? "amber" : "default"}>
-                      {s.prop}
-                    </Badge>
-                    <Badge variant={TIER_BADGE[r.tier]} className="shrink-0">
-                      {r.name} · {r.tier}
-                    </Badge>
-                  </button>
-                )
-              })}
-            </div>
-            <p className="mt-2 flex items-center gap-1.5 px-3 text-[11px] text-muted-foreground">
-              <Search className="size-3" />
-              点击场站查看配储项目、配置参数、运行约束与阶段证据
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+                  </div>
+                  <Badge variant={s.prop === "模拟" ? "violet" : s.prop === "真实内部" ? "amber" : "default"}>
+                    {s.prop}
+                  </Badge>
+                  <Badge variant="outline" className="shrink-0">
+                    {local?.label ?? s.region}
+                  </Badge>
+                </button>
+              )
+            })}
+          </div>
+          <p className="mt-2 flex items-center gap-1.5 px-3 text-[11px] text-muted-foreground">
+            <Search className="size-3" />
+            点击场站查看配储项目、配置参数、运行约束与阶段证据
+          </p>
+        </CardContent>
+      </Card>
 
       <StationSheet station={station} onClose={() => setStation(null)} />
     </div>
